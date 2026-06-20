@@ -35,6 +35,10 @@ const behavioralQuestionSchema = new mongoose.Schema({
 const skillGapSchema = new mongoose.Schema({
     skill:{
         type:String,
+        required:[true,"Skill is required"]
+    },
+    severity:{
+        type:String,
         enum:["low","medium","high"],
         required:[true,"Severity is required"]
     }
@@ -73,7 +77,11 @@ matchScore:{
 },technicalQuestion:[technicalQuestionSchema],
 behavioralQuestion:[behavioralQuestionSchema],
 skillGaps:[skillGapSchema],
-preparationPlan:[preparationPlanSchema]
+preparationPlan:[preparationPlanSchema],
+user:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"users"
+}
 },{
     timestamps:true
 })
