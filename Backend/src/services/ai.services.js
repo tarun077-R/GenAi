@@ -1,5 +1,5 @@
 const { GoogleGenAI, Type } = require("@google/genai");
-
+const puppeteer = require("puppeteer")
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 });
@@ -70,19 +70,51 @@ const interviewReportSchema = {
                 },
                 required: ["day", "focus", "task"]
             }
-        }
+        },title: {
+    type: Type.STRING,
+    description: "The title of the job for which the interview report is generated"
+},
     },
     required: ["matchScore", "technicalQuestions", "behavioralQuestions", "skillGaps", "preparationPlan"]
 };
 
 async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
-    const prompt = `
-You are an AI assistant tasked with analyzing a candidate's interview performance. Please analyze the provided resume, self-description, and job description to generate a comprehensive interview report.
+   const prompt = `
+You are an expert resume writer.
 
-Resume: ${resume}
-Self-Description: ${selfDescription}
-Job Description: ${jobDescription}
-`;
+Use ONLY the information provided below.
+
+IMPORTANT RULES:
+- Do NOT create fake names.
+- Do NOT create fake emails.
+- Do NOT create fake phone numbers.
+- Do NOT create fake projects.
+- Do NOT create fake education details.
+- If information is missing, leave the section empty.
+
+Resume Data:
+${resume}
+
+Self Description:
+${selfDescription}
+
+Job Description:
+${jobDescription}
+
+Create a modern ATS-friendly resume webpage using HTML and embedded CSS.
+
+Sections:
+1. Professional Summary
+2. Technical Skills
+3. Projects
+4. Education
+
+Return only JSON:
+
+{
+  "html":"complete html document"
+}
+`
 
     try {
         const response = await ai.models.generateContent({
@@ -95,7 +127,6 @@ Job Description: ${jobDescription}
         });
 
         const reportData = JSON.parse(response.text);
-        console.log(reportData);
         return reportData;
     } catch (error) {
         console.error("AI Generation Error:", error);
@@ -103,4 +134,78 @@ Job Description: ${jobDescription}
     }
 }
 
-module.exports = generateInterviewReport;
+async function generateResumeHtml({
+    resume,
+    selfDescription,
+    jobDescription
+}) {
+
+    const htmlSchema = {
+        type: Type.OBJECT,
+        properties: {
+            html: {
+                type: Type.STRING
+            }
+        },
+        required: ["html"]
+    }
+
+    const prompt = `
+Create a professional resume webpage.
+
+Resume:
+${resume}
+
+Self Description:
+${selfDescription}
+
+Job Description:
+${jobDescription}
+
+Use embedded CSS only.
+
+Return:
+
+{
+  "html":"complete html document"
+}
+`
+
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: htmlSchema
+        }
+    })
+
+    const result = JSON.parse(response.text)
+    return result.html
+}
+async function generatePdfFromHtml(htmlContent) {
+
+    const browser = await puppeteer.launch({
+        headless: true
+    })
+
+    const page = await browser.newPage()
+
+    await page.setContent(htmlContent, {
+        waitUntil: "networkidle0"
+    })
+
+    const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true
+    })
+
+    await browser.close()
+
+    return pdfBuffer
+}
+module.exports = {
+  generateInterviewReport,
+  generateResumeHtml,
+  generatePdfFromHtml
+};
